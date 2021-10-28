@@ -5,9 +5,11 @@
 package auth
 
 import (
+	"os"
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -17,9 +19,7 @@ const (
 	spinnerColor        = "blue"
 )
 
-func Waiting(fn func() error) error {
-	return loading("", "", "", fn)
-}
+var messages = os.Stderr
 
 func Spinner(text string, fn func() error) error {
 	initialMsg := text + spinnerTextEllipsis + " "
@@ -35,11 +35,11 @@ func loading(initialMsg, doneMsg, failMsg string, fn func() error) error {
 	go func() {
 		defer close(done)
 
-		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond, spinner.WithWriter(Messages))
+		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond, spinner.WithWriter(messages))
 		s.Prefix = initialMsg
 		s.FinalMSG = doneMsg
 		s.HideCursor = true
-		s.Writer = Messages
+		s.Writer = messages
 
 		if err := s.Color(spinnerColor); err != nil {
 			panic(Error(err, "failed setting spinner color"))
@@ -58,4 +58,8 @@ func loading(initialMsg, doneMsg, failMsg string, fn func() error) error {
 	errc <- err
 	<-done
 	return err
+}
+
+func Error(e error, message string) error {
+	return errors.Wrap(e, message)
 }

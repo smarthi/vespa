@@ -45,7 +45,7 @@ func RunLogin(ctx context.Context) error {
 		},
 	}
 
-	state, err := identity.Authenticator.Start(ctx)
+	state, err := identity.Authenticator.Start()
 	if err != nil {
 		return fmt.Errorf("could not start the authentication process: %w", err)
 	}
