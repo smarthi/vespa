@@ -18,13 +18,11 @@ import (
 const (
 	audiencePath           = "/api/v2/"
 	waitThresholdInSeconds = 3
+	// SecretsNamespace namespace used to set/get values from the keychain
+	SecretsNamespace = "vespa-cli"
 )
 
 var requiredScopes = []string{"openid", "offline_access"}
-
-type Identity struct {
-	Authenticator *Authenticator
-}
 
 type Authenticator struct {
 	Audience           string
@@ -48,6 +46,8 @@ type State struct {
 	ExpiresIn       int    `json:"expires_in"`
 	Interval        int    `json:"interval"`
 }
+
+func RequiredScopes() []string { return requiredScopes }
 
 func (s *State) IntervalDuration() time.Duration {
 	return time.Duration(s.Interval+waitThresholdInSeconds) * time.Second

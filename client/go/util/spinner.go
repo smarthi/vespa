@@ -2,7 +2,7 @@
 // vespa login command
 // Author: ldalves
 
-package auth
+package util
 
 import (
 	"os"

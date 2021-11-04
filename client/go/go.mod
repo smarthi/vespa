@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/briandowns/spinner v1.16.0
+	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/logrusorgru/aurora/v3 v3.0.0
 	github.com/mattn/go-colorable v0.1.2
@@ -14,4 +15,5 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
+	github.com/zalando/go-keyring v0.1.1
 )

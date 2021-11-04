@@ -144,6 +144,10 @@ func (c *Config) APIKeyPath(tenantName string) string {
 	return filepath.Join(c.Home, tenantName+".api-key.pem")
 }
 
+func (c *Config) AuthConfigPath() string {
+	return filepath.Join(c.Home, "auth", "config.json")
+}
+
 func (c *Config) ReadAPIKey(tenantName string) ([]byte, error) {
 	return ioutil.ReadFile(c.APIKeyPath(tenantName))
 }
