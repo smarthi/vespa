@@ -168,6 +168,7 @@ public class ModelContextImpl implements ModelContext {
         private final boolean useThreePhaseUpdates;
         private final String feedSequencer;
         private final int feedTaskLimit;
+        private final String sharedFieldWriterExecutor;
         private final String responseSequencer;
         private final int numResponseThreads;
         private final boolean skipCommunicationManagerThread;
@@ -203,6 +204,7 @@ public class ModelContextImpl implements ModelContext {
             this.useThreePhaseUpdates = flagValue(source, appId, Flags.USE_THREE_PHASE_UPDATES);
             this.feedSequencer = flagValue(source, appId, Flags.FEED_SEQUENCER_TYPE);
             this.feedTaskLimit = flagValue(source, appId, Flags.FEED_TASK_LIMIT);
+            this.sharedFieldWriterExecutor = flagValue(source, appId, Flags.SHARED_FIELD_WRITER_EXECUTOR);
             this.responseSequencer = flagValue(source, appId, Flags.RESPONSE_SEQUENCER_TYPE);
             this.numResponseThreads = flagValue(source, appId, Flags.RESPONSE_NUM_THREADS);
             this.skipCommunicationManagerThread = flagValue(source, appId, Flags.SKIP_COMMUNICATIONMANAGER_THREAD);
@@ -238,6 +240,7 @@ public class ModelContextImpl implements ModelContext {
         @Override public boolean useThreePhaseUpdates() { return useThreePhaseUpdates; }
         @Override public String feedSequencerType() { return feedSequencer; }
         @Override public int feedTaskLimit() { return feedTaskLimit; }
+        @Override public String sharedFieldWriterExecutor() { return sharedFieldWriterExecutor; }
         @Override public String responseSequencerType() { return responseSequencer; }
         @Override public int defaultNumResponseThreads() { return numResponseThreads; }
         @Override public boolean skipCommunicationManagerThread() { return skipCommunicationManagerThread; }
@@ -329,6 +332,7 @@ public class ModelContextImpl implements ModelContext {
         private final boolean allowDisableMtls;
         private final List<X509Certificate> operatorCertificates;
         private final List<String> tlsCiphersOverride;
+        private final List<String> zoneDnsSuffixes;
 
         public Properties(ApplicationId applicationId,
                           ConfigserverConfig configserverConfig,
@@ -367,6 +371,7 @@ public class ModelContextImpl implements ModelContext {
             this.operatorCertificates = operatorCertificates;
             this.tlsCiphersOverride = PermanentFlags.TLS_CIPHERS_OVERRIDE.bindTo(flagSource)
                     .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
+            this.zoneDnsSuffixes = configserverConfig.zoneDnsSuffixes();
         }
 
         @Override public ModelContext.FeatureFlags featureFlags() { return featureFlags; }
@@ -436,6 +441,11 @@ public class ModelContextImpl implements ModelContext {
         }
 
         @Override public List<String> tlsCiphersOverride() { return tlsCiphersOverride; }
+
+        @Override
+        public List<String> zoneDnsSuffixes() {
+            return zoneDnsSuffixes;
+        }
 
         public String flagValueForClusterType(StringFlag flag, Optional<ClusterSpec.Type> clusterType) {
             return clusterType.map(type -> flag.with(CLUSTER_TYPE, type.name()))

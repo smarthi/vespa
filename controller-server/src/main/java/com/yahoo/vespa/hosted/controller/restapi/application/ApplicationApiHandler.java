@@ -100,7 +100,7 @@ import com.yahoo.vespa.hosted.controller.persistence.SupportAccessSerializer;
 import com.yahoo.vespa.hosted.controller.rotation.RotationId;
 import com.yahoo.vespa.hosted.controller.rotation.RotationState;
 import com.yahoo.vespa.hosted.controller.rotation.RotationStatus;
-import com.yahoo.vespa.hosted.controller.routing.GlobalRouting;
+import com.yahoo.vespa.hosted.controller.routing.RoutingStatus;
 import com.yahoo.vespa.hosted.controller.security.AccessControlRequests;
 import com.yahoo.vespa.hosted.controller.security.Credentials;
 import com.yahoo.vespa.hosted.controller.support.access.SupportAccess;
@@ -137,7 +137,6 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1164,8 +1163,8 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
             }));
         }
 
-        // Global endpoints
-        globalEndpointsToSlime(object, instance);
+        // Rotation ID
+        addRotationId(object, instance);
 
         // Deployments sorted according to deployment spec
         List<Deployment> deployments = deploymentSpec.instance(instance.name())
@@ -1195,23 +1194,8 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
         }
     }
 
-    // TODO(mpolden): Remove once legacy dashboard and integration tests stop expecting these fields
-    private void globalEndpointsToSlime(Cursor object, Instance instance) {
-        var globalEndpointUrls = new LinkedHashSet<String>();
-
-        // Add global endpoints backed by rotations
-        controller.routing().endpointsOf(instance.id())
-                  .requiresRotation()
-                  .not().legacy() // Hide legacy names
-                  .asList().stream()
-                  .map(Endpoint::url)
-                  .map(URI::toString)
-                  .forEach(globalEndpointUrls::add);
-
-
-        var globalRotationsArray = object.setArray("globalRotations");
-        globalEndpointUrls.forEach(globalRotationsArray::addString);
-
+    // TODO(mpolden): Remove once MultiRegionTest stops expecting this field
+    private void addRotationId(Cursor object, Instance instance) {
         // Legacy field. Identifies the first assigned rotation, if any.
         instance.rotations().stream()
                 .map(AssignedRotation::rotationId)
@@ -1267,8 +1251,8 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
 
         application.majorVersion().ifPresent(majorVersion -> object.setLong("majorVersion", majorVersion));
 
-        // Global endpoint
-        globalEndpointsToSlime(object, instance);
+        // Rotation ID
+        addRotationId(object, instance);
 
         // Deployments sorted according to deployment spec
         List<Deployment> deployments =
@@ -1387,7 +1371,7 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
         // Add zone endpoints
         boolean legacyEndpoints = request.getBooleanProperty("includeLegacyEndpoints");
         var endpointArray = response.setArray("endpoints");
-        EndpointList zoneEndpoints = controller.routing().endpointsOf(deploymentId)
+        EndpointList zoneEndpoints = controller.routing().readEndpointsOf(deploymentId)
                                                .scope(Endpoint.Scope.zone);
         if (!legacyEndpoints) {
             zoneEndpoints = zoneEndpoints.not().legacy();
@@ -1395,13 +1379,13 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
         for (var endpoint : controller.routing().directEndpoints(zoneEndpoints, deploymentId.applicationId())) {
             toSlime(endpoint, endpointArray.addObject());
         }
-        // Add global endpoints
-        EndpointList globalEndpoints = controller.routing().endpointsOf(application, deploymentId.applicationId().instance())
-                                                 .targets(deploymentId.zoneId());
+        // Add declared endpoints
+        EndpointList declaredEndpoints = controller.routing().declaredEndpointsOf(application)
+                                                   .targets(deploymentId);
         if (!legacyEndpoints) {
-            globalEndpoints = globalEndpoints.not().legacy();
+            declaredEndpoints = declaredEndpoints.not().legacy();
         }
-        for (var endpoint : controller.routing().directEndpoints(globalEndpoints, deploymentId.applicationId())) {
+        for (var endpoint : controller.routing().directEndpoints(declaredEndpoints, deploymentId.applicationId())) {
             toSlime(endpoint, endpointArray.addObject());
         }
 
@@ -1561,16 +1545,16 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
 
     /** Set the global endpoint status for given deployment. This only applies to global endpoints backed by a cloud service */
     private void setGlobalEndpointStatus(DeploymentId deployment, boolean inService, HttpRequest request) {
-        var agent = isOperator(request) ? GlobalRouting.Agent.operator : GlobalRouting.Agent.tenant;
-        var status = inService ? GlobalRouting.Status.in : GlobalRouting.Status.out;
-        controller.routing().policies().setGlobalRoutingStatus(deployment, status, agent);
+        var agent = isOperator(request) ? RoutingStatus.Agent.operator : RoutingStatus.Agent.tenant;
+        var status = inService ? RoutingStatus.Value.in : RoutingStatus.Value.out;
+        controller.routing().policies().setRoutingStatus(deployment, status, agent);
     }
 
     /** Set the global rotation status for given deployment. This only applies to global endpoints backed by a rotation */
     private void setGlobalRotationStatus(DeploymentId deployment, boolean inService, HttpRequest request) {
         var requestData = toSlime(request.getData()).get();
         var reason = mandatory("reason", requestData).asString();
-        var agent = isOperator(request) ? GlobalRouting.Agent.operator : GlobalRouting.Agent.tenant;
+        var agent = isOperator(request) ? RoutingStatus.Agent.operator : RoutingStatus.Agent.tenant;
         long timestamp = controller.clock().instant().getEpochSecond();
         var status = inService ? EndpointStatus.Status.in : EndpointStatus.Status.out;
         var endpointStatus = new EndpointStatus(status, reason, agent.name(), timestamp);
@@ -2077,7 +2061,7 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
         return new SlimeJsonResponse(testConfigSerializer.configSlime(id,
                                                                       type,
                                                                       false,
-                                                                      controller.routing().zoneEndpointsOf(deployments),
+                                                                      controller.routing().readZoneEndpointsOf(deployments),
                                                                       controller.applications().reachableContentClustersByZone(deployments)));
     }
 
@@ -2694,7 +2678,7 @@ public class ApplicationApiHandler extends AuditLoggingRequestHandler {
 
     private static String endpointScopeString(Endpoint.Scope scope) {
         switch (scope) {
-            case region: return "region";
+            case weighted: return "region";
             case global: return "global";
             case zone: return "zone";
         }

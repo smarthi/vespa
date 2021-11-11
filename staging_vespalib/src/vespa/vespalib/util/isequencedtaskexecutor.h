@@ -19,12 +19,12 @@ class ISequencedTaskExecutor
 public:
     class ExecutorId {
     public:
-        ExecutorId() : ExecutorId(0) { }
-        explicit ExecutorId(uint32_t id) : _id(id) { }
-        uint32_t getId() const { return _id; }
-        bool operator != (ExecutorId rhs) const { return _id != rhs._id; }
-        bool operator == (ExecutorId rhs) const { return _id == rhs._id; }
-        bool operator < (ExecutorId rhs) const { return _id < rhs._id; }
+        ExecutorId() noexcept : ExecutorId(0) { }
+        explicit ExecutorId(uint32_t id) noexcept : _id(id) { }
+        uint32_t getId() const noexcept { return _id; }
+        bool operator != (ExecutorId rhs) const noexcept { return _id != rhs._id; }
+        bool operator == (ExecutorId rhs) const noexcept { return _id == rhs._id; }
+        bool operator < (ExecutorId rhs) const noexcept { return _id < rhs._id; }
     private:
         uint32_t _id;
     };
@@ -41,6 +41,15 @@ public:
     uint32_t getNumExecutors() const { return _numExecutors; }
 
     ExecutorId getExecutorIdFromName(vespalib::stringref componentId) const;
+
+    /**
+     * Returns an executor id that is NOT equal to the given executor id,
+     * using the given bias to offset the new id.
+     *
+     * This is relevant for pipelining operations on the same component,
+     * by doing pipeline steps in different executors.
+     */
+    ExecutorId get_alternate_executor_id(ExecutorId id, uint32_t bias) const;
 
     /**
      * Schedule a task to run after all previously scheduled tasks with

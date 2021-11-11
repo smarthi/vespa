@@ -33,6 +33,7 @@ import com.yahoo.vespa.objects.BufferSerializer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 public class ProtobufSerialization {
@@ -196,7 +197,7 @@ public class ProtobufSerialization {
     }
 
     static InvokerResult convertToResult(Query query, SearchProtocol.SearchReply protobuf,
-                                                 DocumentDatabase documentDatabase, int partId, int distKey)
+                                         DocumentDatabase documentDatabase, int partId, int distKey)
     {
         InvokerResult result = new InvokerResult(query, protobuf.getHitsCount());
 
@@ -204,7 +205,9 @@ public class ProtobufSerialization {
         result.getResult().setCoverage(convertToCoverage(protobuf));
 
         convertSearchReplyErrors(result.getResult(), protobuf.getErrorsList());
-
+        List<String> featureNames = protobuf.getMatchFeatureNamesList();
+        var haveMatchFeatures = ! featureNames.isEmpty();
+        MatchFeatureData matchFeatures = haveMatchFeatures ? new MatchFeatureData(featureNames) : null;
         var haveGrouping = ! protobuf.getGroupingBlob().isEmpty();
         if (haveGrouping) {
             BufferSerializer buf = new BufferSerializer(new GrowableByteBuffer(protobuf.getGroupingBlob().asReadOnlyByteBuffer()));
@@ -219,11 +222,28 @@ public class ProtobufSerialization {
             hit.setQuery(query);
             result.getResult().hits().add(hit);
         }
-
         for (var replyHit : protobuf.getHitsList()) {
             LeanHit hit = (replyHit.getSortData().isEmpty())
                     ? new LeanHit(replyHit.getGlobalId().toByteArray(), partId, distKey, replyHit.getRelevance())
                     : new LeanHit(replyHit.getGlobalId().toByteArray(), partId, distKey, replyHit.getRelevance(), replyHit.getSortData().toByteArray());
+            if (haveMatchFeatures) {
+                var hitFeatures = matchFeatures.addHit();
+                var featureList = replyHit.getMatchFeaturesList();
+                if (featureList.size() == featureNames.size()) {
+                    int idx = 0;
+                    for (SearchProtocol.Feature value : featureList) {
+                        ByteString tensorBlob = value.getTensor();
+                        if (tensorBlob.isEmpty()) {
+                            hitFeatures.set(idx++, value.getNumber());
+                        } else {
+                            hitFeatures.set(idx++, tensorBlob.toByteArray());
+                        }
+                    }
+                    hit.addMatchFeatures(hitFeatures);
+                } else {
+                    result.getResult().hits().addError(ErrorMessage.createBackendCommunicationError("mismatch in match feature sizes"));
+                }
+            }
             result.getLeanHits().add(hit);
         }
 

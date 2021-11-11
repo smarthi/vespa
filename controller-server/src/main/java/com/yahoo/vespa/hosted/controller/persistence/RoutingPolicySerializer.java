@@ -11,16 +11,16 @@ import com.yahoo.slime.Inspector;
 import com.yahoo.slime.Slime;
 import com.yahoo.slime.SlimeUtils;
 import com.yahoo.vespa.hosted.controller.application.EndpointId;
-import com.yahoo.vespa.hosted.controller.routing.GlobalRouting;
+import com.yahoo.vespa.hosted.controller.routing.RoutingStatus;
 import com.yahoo.vespa.hosted.controller.routing.RoutingPolicy;
 import com.yahoo.vespa.hosted.controller.routing.RoutingPolicyId;
-import com.yahoo.vespa.hosted.controller.routing.Status;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Serializer and deserializer for a {@link RoutingPolicy}.
@@ -42,7 +42,8 @@ public class RoutingPolicySerializer {
     private static final String canonicalNameField = "canonicalName";
     private static final String zoneField = "zone";
     private static final String dnsZoneField = "dnsZone";
-    private static final String rotationsField = "rotations";
+    private static final String instanceEndpointsField = "rotations";
+    private static final String applicationEndpointsField = "applicationEndpoints";
     private static final String loadBalancerActiveField = "active";
     private static final String globalRoutingField = "globalRouting";
     private static final String agentField = "agent";
@@ -59,12 +60,12 @@ public class RoutingPolicySerializer {
             policyObject.setString(zoneField, policy.id().zone().value());
             policyObject.setString(canonicalNameField, policy.canonicalName().value());
             policy.dnsZone().ifPresent(dnsZone -> policyObject.setString(dnsZoneField, dnsZone));
-            var rotationArray = policyObject.setArray(rotationsField);
-            policy.endpoints().forEach(endpointId -> {
-                rotationArray.addString(endpointId.id());
-            });
+            var instanceEndpointsArray = policyObject.setArray(instanceEndpointsField);
+            policy.instanceEndpoints().forEach(endpointId -> instanceEndpointsArray.addString(endpointId.id()));
+            var applicationEndpointsArray = policyObject.setArray(applicationEndpointsField);
+            policy.applicationEndpoints().forEach(endpointId -> applicationEndpointsArray.addString(endpointId.id()));
             policyObject.setBool(loadBalancerActiveField, policy.status().isActive());
-            globalRoutingToSlime(policy.status().globalRouting(), policyObject.setObject(globalRoutingField));
+            globalRoutingToSlime(policy.status().routingStatus(), policyObject.setObject(globalRoutingField));
         });
         return slime;
     }
@@ -74,32 +75,35 @@ public class RoutingPolicySerializer {
         var root = slime.get();
         var field = root.field(routingPoliciesField);
         field.traverse((ArrayTraverser) (i, inspect) -> {
-            var endpointIds = new LinkedHashSet<EndpointId>();
-            inspect.field(rotationsField).traverse((ArrayTraverser) (j, endpointId) -> endpointIds.add(EndpointId.of(endpointId.asString())));
-            var id = new RoutingPolicyId(owner,
-                                         ClusterSpec.Id.from(inspect.field(clusterField).asString()),
-                                         ZoneId.from(inspect.field(zoneField).asString()));
+            Set<EndpointId> instanceEndpoints = new LinkedHashSet<>();
+            inspect.field(instanceEndpointsField).traverse((ArrayTraverser) (j, endpointId) -> instanceEndpoints.add(EndpointId.of(endpointId.asString())));
+            Set<EndpointId> applicationEndpoints = new LinkedHashSet<>();
+            inspect.field(applicationEndpointsField).traverse((ArrayTraverser) (idx, endpointId) -> applicationEndpoints.add(EndpointId.of(endpointId.asString())));
+            RoutingPolicyId id = new RoutingPolicyId(owner,
+                                                     ClusterSpec.Id.from(inspect.field(clusterField).asString()),
+                                                     ZoneId.from(inspect.field(zoneField).asString()));
             policies.put(id, new RoutingPolicy(id,
                                                HostName.from(inspect.field(canonicalNameField).asString()),
                                                SlimeUtils.optionalString(inspect.field(dnsZoneField)),
-                                               endpointIds,
-                                               new Status(inspect.field(loadBalancerActiveField).asBool(),
-                                                          globalRoutingFromSlime(inspect.field(globalRoutingField)))));
+                                               instanceEndpoints,
+                                               applicationEndpoints,
+                                               new RoutingPolicy.Status(inspect.field(loadBalancerActiveField).asBool(),
+                                                                        globalRoutingFromSlime(inspect.field(globalRoutingField)))));
         });
         return Collections.unmodifiableMap(policies);
     }
 
-    public void globalRoutingToSlime(GlobalRouting globalRouting, Cursor object) {
-        object.setString(statusField, globalRouting.status().name());
-        object.setString(agentField, globalRouting.agent().name());
-        object.setLong(changedAtField, globalRouting.changedAt().toEpochMilli());
+    public void globalRoutingToSlime(RoutingStatus routingStatus, Cursor object) {
+        object.setString(statusField, routingStatus.value().name());
+        object.setString(agentField, routingStatus.agent().name());
+        object.setLong(changedAtField, routingStatus.changedAt().toEpochMilli());
     }
 
-    public GlobalRouting globalRoutingFromSlime(Inspector object) {
-        var status = GlobalRouting.Status.valueOf(object.field(statusField).asString());
-        var agent = GlobalRouting.Agent.valueOf(object.field(agentField).asString());
+    public RoutingStatus globalRoutingFromSlime(Inspector object) {
+        var status = RoutingStatus.Value.valueOf(object.field(statusField).asString());
+        var agent = RoutingStatus.Agent.valueOf(object.field(agentField).asString());
         var changedAt = SlimeUtils.optionalInstant(object.field(changedAtField)).orElse(Instant.EPOCH);
-        return new GlobalRouting(status, agent, changedAt);
+        return new RoutingStatus(status, agent, changedAt);
     }
 
 }

@@ -112,6 +112,7 @@ public class SdSyntaxHighlighter extends SyntaxHighlighterBase {
         keyWords.add(SdTypes.FUNCTION);
         keyWords.add(SdTypes.INLINE);
         keyWords.add(SdTypes.SUMMARY_FEATURES);
+        keyWords.add(SdTypes.MATCH_FEATURES);
         keyWords.add(SdTypes.RANK_FEATURES);
         keyWords.add(SdTypes.CONSTANTS);
         keyWords.add(SdTypes.DOCUMENT);
@@ -172,6 +173,7 @@ public class SdSyntaxHighlighter extends SyntaxHighlighterBase {
         constants.add(SdTypes.SUMMARY);
         constants.add(SdTypes.INDEX);
         constants.add(SdTypes.SET_LANGUAGE);
+        constants.add(SdTypes.LOWERCASE);
         constants.add(SdTypes.FAST_SEARCH);
         constants.add(SdTypes.FAST_ACCESS);
         constants.add(SdTypes.PAGED);

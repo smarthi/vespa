@@ -11,16 +11,18 @@ import com.yahoo.slime.Slime;
 import com.yahoo.slime.SlimeUtils;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class VespaAwsCredentialsProvider implements AWSCredentialsProvider {
 
-    private static final String DEFAULT_CREDENTIALS_PATH = "/opt/vespa/var/container-data/opt/vespa/conf/vespa/credentials.json";
+    private static final String DEFAULT_CREDENTIALS_PATH = "/opt/vespa/var/vespa/aws/credentials.json";
 
     private final AtomicReference<AWSCredentials> credentials = new AtomicReference<>();
     private final Path credentialsPath;
+
 
     public VespaAwsCredentialsProvider() {
         this.credentialsPath = Path.of(DEFAULT_CREDENTIALS_PATH);
@@ -50,7 +52,7 @@ public class VespaAwsCredentialsProvider implements AWSCredentialsProvider {
             String sessionToken = cursor.field("sessionToken").asString();
             return new BasicSessionCredentials(accessKey, secretKey, sessionToken);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 }

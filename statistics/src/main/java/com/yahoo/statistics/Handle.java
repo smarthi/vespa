@@ -1,15 +1,14 @@
 // Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 package com.yahoo.statistics;
 
-
 import java.util.TimerTask;
-
 
 /**
  * Base class for the interface to the statistics framework.
  *
  * @author  <a href="mailto:steinar@yahoo-inc.com">Steinar Knutsen</a>
  */
+@Deprecated
 public abstract class Handle {
 
     private TimerTask task;

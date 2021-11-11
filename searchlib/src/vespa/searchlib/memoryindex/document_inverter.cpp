@@ -4,14 +4,22 @@
 #include "document_inverter_context.h"
 #include "i_field_index_collection.h"
 #include "field_inverter.h"
+#include "invert_task.h"
+#include "push_task.h"
+#include "remove_task.h"
 #include "url_field_inverter.h"
+#include <vespa/searchlib/common/schedule_sequenced_task_callback.h>
 #include <vespa/vespalib/util/isequencedtaskexecutor.h>
+#include <vespa/vespalib/util/retain_guard.h>
 
 namespace search::memoryindex {
 
 using document::Document;
 using index::Schema;
+using search::ScheduleSequencedTaskCallback;
 using search::index::FieldLengthCalculator;
+using vespalib::ISequencedTaskExecutor;
+using vespalib::RetainGuard;
 
 DocumentInverter::DocumentInverter(DocumentInverterContext& context)
     : _context(context),
@@ -46,33 +54,18 @@ DocumentInverter::DocumentInverter(DocumentInverterContext& context)
 
 DocumentInverter::~DocumentInverter()
 {
-    _context.get_invert_threads().sync_all();
-    _context.get_push_threads().sync_all();
+    wait_for_zero_ref_count();
 }
 
 void
-DocumentInverter::invertDocument(uint32_t docId, const Document &doc)
+DocumentInverter::invertDocument(uint32_t docId, const Document &doc, OnWriteDoneType on_write_done)
 {
-    // Might want to batch inverters as we do for attributes
-    _context.set_data_type(doc);
-    auto& schema_index_fields = _context.get_schema_index_fields();
     auto& invert_threads = _context.get_invert_threads();
-    for (uint32_t fieldId : schema_index_fields._textFields) {
-        auto fv = _context.get_field_value(doc, fieldId);
-        FieldInverter *inverter = _inverters[fieldId].get();
-        invert_threads.execute(fieldId,[inverter, docId, fv(std::move(fv))]() {
-            inverter->invertField(docId, fv);
-        });
-    }
-    uint32_t urlId = 0;
-    for (const auto & fi : schema_index_fields._uriFields) {
-        uint32_t fieldId = fi._all;
-        auto fv = _context.get_field_value(doc, fieldId);
-        UrlFieldInverter *inverter = _urlInverters[urlId].get();
-        invert_threads.execute(fieldId,[inverter, docId, fv(std::move(fv))]() {
-            inverter->invertField(docId, fv);
-        });
-        ++urlId;
+    auto& invert_contexts = _context.get_invert_contexts();
+    for (auto& invert_context : invert_contexts) {
+        auto id = invert_context.get_id();
+        auto task = std::make_unique<InvertTask>(_context, invert_context, _inverters, _urlInverters, docId, doc, on_write_done);
+        invert_threads.executeTask(id, std::move(task));
     }
 }
 
@@ -85,43 +78,37 @@ DocumentInverter::removeDocument(uint32_t docId) {
 void
 DocumentInverter::removeDocuments(LidVector lids)
 {
-    // Might want to batch inverters as we do for attributes
-    auto& schema_index_fields = _context.get_schema_index_fields();
     auto& invert_threads = _context.get_invert_threads();
-    for (uint32_t fieldId : schema_index_fields._textFields) {
-        FieldInverter *inverter = _inverters[fieldId].get();
-        invert_threads.execute(fieldId, [inverter, lids]() {
-            for (uint32_t lid : lids) {
-                inverter->removeDocument(lid);
-            }
-        });
-    }
-    uint32_t urlId = 0;
-    for (const auto & fi : schema_index_fields._uriFields) {
-        uint32_t fieldId = fi._all;
-        UrlFieldInverter *inverter = _urlInverters[urlId].get();
-        invert_threads.execute(fieldId, [inverter, lids]() {
-            for (uint32_t lid : lids) {
-                inverter->removeDocument(lid);
-            }
-        });
-        ++urlId;
+    auto& invert_contexts = _context.get_invert_contexts();
+    for (auto& invert_context : invert_contexts) {
+        auto id = invert_context.get_id();
+        auto task = std::make_unique<RemoveTask>(invert_context, _inverters, _urlInverters, lids);
+        invert_threads.executeTask(id, std::move(task));
     }
 }
 
 void
-DocumentInverter::pushDocuments(const std::shared_ptr<vespalib::IDestructorCallback> &onWriteDone)
+DocumentInverter::pushDocuments(OnWriteDoneType on_write_done)
 {
-    uint32_t fieldId = 0;
+    auto retain = std::make_shared<RetainGuard>(_ref_count);
+    using PushTasks = std::vector<std::shared_ptr<ScheduleSequencedTaskCallback>>;
+    PushTasks all_push_tasks;
     auto& push_threads = _context.get_push_threads();
-    for (auto &inverter : _inverters) {
-        push_threads.execute(fieldId,[inverter(inverter.get()), onWriteDone]() {
-            inverter->applyRemoves();
-            inverter->pushDocuments();
-        });
-        ++fieldId;
+    auto& push_contexts = _context.get_push_contexts();
+    for (auto& push_context : push_contexts) {
+        auto task = std::make_unique<PushTask>(push_context, _inverters, _urlInverters, on_write_done, retain);
+        all_push_tasks.emplace_back(std::make_shared<ScheduleSequencedTaskCallback>(push_threads, push_context.get_id(), std::move(task)));
+    }
+    auto& invert_threads = _context.get_invert_threads();
+    auto& invert_contexts = _context.get_invert_contexts();
+    for (auto& invert_context : invert_contexts) {
+        PushTasks push_tasks;
+        for (auto& pusher : invert_context.get_pushers()) {
+            assert(pusher < all_push_tasks.size());
+            push_tasks.emplace_back(all_push_tasks[pusher]);
+        }
+        invert_threads.execute(invert_context.get_id(), [push_tasks(std::move(push_tasks))]() { });
     }
 }
 
 }
-

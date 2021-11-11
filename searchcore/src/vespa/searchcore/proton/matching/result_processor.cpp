@@ -5,7 +5,6 @@
 #include "sessionmanager.h"
 #include <vespa/searchcore/grouping/groupingmanager.h>
 #include <vespa/searchcore/grouping/groupingcontext.h>
-#include <vespa/searchlib/common/docstamp.h>
 #include <vespa/searchlib/uca/ucaconverter.h>
 #include <vespa/searchlib/engine/searchreply.h>
 
@@ -101,6 +100,19 @@ ResultProcessor::createThreadContext(const vespalib::Doom & hardDoom, size_t thr
     }
     return std::make_unique<Context>(std::move(sort), std::move(result), std::move(groupingContext));
 }
+
+std::vector<std::pair<uint32_t,uint32_t>>
+ResultProcessor::extract_docid_ordering(const PartialResult &result) const
+{
+    size_t est_size = result.size() - std::min(result.size(), _offset);
+    std::vector<std::pair<uint32_t,uint32_t>> list;
+    list.reserve(est_size);
+    for (size_t i = _offset; i < result.size(); ++i) {
+        list.emplace_back(result.hit(i)._docId, list.size());
+    }
+    std::sort(list.begin(), list.end(), [](const auto &a, const auto &b){ return (a.first < b.first); });
+    return list;
+};
 
 ResultProcessor::Result::UP
 ResultProcessor::makeReply(PartialResultUP full_result)

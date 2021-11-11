@@ -8,8 +8,6 @@ import java.util.logging.Logger;
 import com.yahoo.container.StatisticsConfig;
 import com.yahoo.container.StatisticsConfig.Values.Operations;
 import java.util.logging.Level;
-import com.yahoo.log.event.Event;
-import com.yahoo.statistics.SampleSet.Sampling;
 
 /**
  * A statistical variable, typically representing a sampling of an
@@ -17,6 +15,7 @@ import com.yahoo.statistics.SampleSet.Sampling;
  *
  * @author Steinar Knutsen
  */
+@Deprecated
 public class Value extends Handle {
 
     // For accumulated values, SampleSet instances are mem barriers between {n
@@ -47,9 +46,7 @@ public class Value extends Handle {
     private final boolean logHistogram;
 
     private final Limits histogram;
-    private final boolean nameExtension;
     final HistogramType histogramId;
-    private final char appendChar;
 
     private static final Logger log = Logger.getLogger(Value.class.getName());
     static final String HISTOGRAM_TYPE_WARNING = "Histogram types other than REGULAR currently not supported."
@@ -354,7 +351,6 @@ public class Value extends Handle {
         this.logRaw = isTrue(parameters.logRaw);
         this.logSum = isTrue(parameters.logSum);
         this.logInsertions = isTrue(parameters.logInsertions);
-        this.nameExtension = isTrue(parameters.nameExtension);
         if (logHistogram) {
             if (!parameters.limits.isFrozen()) {
                 throw new IllegalStateException("The Limits instance must be frozen.");
@@ -368,19 +364,14 @@ public class Value extends Handle {
             this.histogram = null;
             this.histogramId = HistogramType.REGULAR;
         }
-        Character appendChar = parameters.appendChar;
-        if (appendChar == null) {
-            this.appendChar = '.';
-        } else {
-            this.appendChar = appendChar.charValue();
-        }
+
         if (parameters.register) {
             manager.register(this);
         }
     }
 
     private static boolean isTrue(Boolean b) {
-        return b != null && b.booleanValue();
+        return b != null && b;
     }
 
     /**
@@ -539,10 +530,10 @@ public class Value extends Handle {
      * Get mean value since last reset.
      */
     public double getMean() {
-        Sampling[] values = directory.viewValues();
+        SampleSet.Sampling[] values = directory.viewValues();
         long insertions = 0L;
         double sum = 0.0d;
-        for (Sampling x : values) {
+        for (var x : values) {
             insertions += x.insertions;
             sum += x.sum;
         }
@@ -556,10 +547,10 @@ public class Value extends Handle {
      * Get minimal value logged since last reset.
      */
     public double getMin() {
-        Sampling[] values = directory.viewValues();
+        SampleSet.Sampling[] values = directory.viewValues();
         long insertions = 0L;
         double min = 0.0d;
-        for (Sampling x : values) {
+        for (var x : values) {
             if (x.insertions == 0) {
                 continue;
             }
@@ -577,10 +568,10 @@ public class Value extends Handle {
      * Get maximum value logged since last reset.
      */
     public double getMax() {
-        Sampling[] values = directory.viewValues();
+        SampleSet.Sampling[] values = directory.viewValues();
         long insertions = 0L;
         double max = 0.0d;
-        for (Sampling x : values) {
+        for (var x : values) {
             if (x.insertions == 0) {
                 continue;
             }
@@ -598,9 +589,9 @@ public class Value extends Handle {
         if (histogram == null) {
             return null;
         } else {
-            Sampling[] values = directory.viewValues();
+            SampleSet.Sampling[] values = directory.viewValues();
             Histogram merged = new Histogram(histogram);
-            for (Sampling s : values) {
+            for (var s : values) {
                 merged.merge(s.histogram);
             }
             return merged;
@@ -632,77 +623,7 @@ public class Value extends Handle {
      */
     @Override
     public void runHandle() {
-        String rawImage = null;
-        String meanImage = null;
-        String minImage = null;
-        String maxImage = null;
-        String sumImage = null;
-        String insertionsImage = null;
-        String histImage = null;
-        String lastHist = null;
-        String histType = null;
-        Snapshot now = getCurrentState();
-
-        if (nameExtension) {
-            if (logRaw) {
-                rawImage = getName();
-            }
-            if (logMean) {
-                meanImage = getName() + appendChar + "mean";
-            }
-            if (logMin) {
-                minImage = getName() + appendChar + "min";
-            }
-            if (logMax) {
-                maxImage = getName() + appendChar + "max";
-            }
-            if (logSum) {
-                sumImage = getName() + appendChar + "sum";
-            }
-            if (logInsertions) {
-                insertionsImage = getName() + appendChar + "insertions";
-            }
-        } else {
-            if (logRaw) {
-                rawImage = getName();
-            } else if (logMean) {
-                meanImage = getName();
-            } else if (logMin) {
-                minImage = getName();
-            } else if (logMax) {
-                maxImage = getName();
-            } else if (logSum) {
-                sumImage = getName();
-            } else if (logInsertions) {
-                insertionsImage = getName();
-            }
-        }
-        if (logHistogram) {
-            histImage = getName();
-            lastHist = now.histogram.toString();
-            histType = histogramId.toString();
-        }
-        if (rawImage != null) {
-            Event.value(rawImage, now.raw);
-        }
-        if (meanImage != null) {
-            Event.value(meanImage, now.mean);
-        }
-        if (minImage != null) {
-            Event.value(minImage, now.min);
-        }
-        if (maxImage != null) {
-            Event.value(maxImage, now.max);
-        }
-        if (histImage != null) {
-            Event.histogram(histImage, lastHist, histType);
-        }
-        if (sumImage != null) {
-            Event.value(sumImage, now.sum);
-        }
-        if (insertionsImage != null) {
-            Event.value(insertionsImage, now.insertions);
-        }
+        getAndSetCurrentState();
     }
 
     public String toString() {
@@ -772,7 +693,7 @@ public class Value extends Handle {
         }
     }
 
-    private Snapshot getCurrentState() {
+    private Snapshot getAndSetCurrentState() {
         double lastInsertions = 0L;
         double lastMax = 0.0d;
         double lastMin = 0.0d;
@@ -785,11 +706,11 @@ public class Value extends Handle {
             lastRaw = lastValue;
         }
         if (logComposite()) {
-            Sampling[] lastInterval = directory.fetchValues();
+            SampleSet.Sampling[] lastInterval = directory.fetchValues();
             if (histogram != null) {
                 mergedHistogram = new Histogram(histogram);
             }
-            for (Sampling threadData : lastInterval) {
+            for (var threadData : lastInterval) {
                 if (threadData.insertions == 0) {
                     continue;
                 }
@@ -820,7 +741,7 @@ public class Value extends Handle {
 
     ValueProxy getProxyAndReset() {
         ValueProxy p = new ValueProxy(getName());
-        Snapshot now = getCurrentState();
+        Snapshot now = getAndSetCurrentState();
 
         if (logRaw) {
             p.setRaw(now.raw);

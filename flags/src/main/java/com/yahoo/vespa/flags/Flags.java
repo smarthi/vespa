@@ -59,6 +59,12 @@ public class Flags {
             "Will attempt to switch on next host admin tick (requires reboot).",
             NODE_TYPE, HOSTNAME);
 
+    public static final UnboundBooleanFlag MOUNT_READONLY = defineFeatureFlag(
+            "mount-readonly", false,
+            List.of("freva"), "2021-11-04", "2021-12-01",
+            "Whether host-admin should mount container-data and credential directories read-only when starting container",
+            "Takes effect on next container restart.");
+
     public static final UnboundDoubleFlag DEFAULT_TERM_WISE_LIMIT = defineDoubleFlag(
             "default-term-wise-limit", 1.0,
             List.of("baldersheim"), "2020-12-02", "2022-01-01",
@@ -78,6 +84,14 @@ public class Flags {
             List.of("geirst, baldersheim"), "2021-10-14", "2022-01-01",
             "The task limit used by the executors handling feed in proton",
             "Takes effect at redeployment",
+            ZONE_ID, APPLICATION_ID);
+
+    public static final UnboundStringFlag SHARED_FIELD_WRITER_EXECUTOR = defineStringFlag(
+            "shared-field-writer-executor", "NONE",
+            List.of("geirst, baldersheim"), "2021-11-05", "2022-02-01",
+            "Whether to use a shared field writer executor for the document database(s) in proton. " +
+            "Valid values: NONE, INDEX, INDEX_AND_ATTRIBUTE, DOCUMENT_DB",
+            "Takes effect at redeployment (requires restart)",
             ZONE_ID, APPLICATION_ID);
 
     public static final UnboundIntFlag MAX_UNCOMMITTED_MEMORY = defineIntFlag(
@@ -342,9 +356,12 @@ public class Flags {
     public static final UnboundStringFlag JDK_VERSION = defineStringFlag(
             "jdk-version", "11",
             List.of("hmusum"), "2021-10-25", "2021-11-25",
-            "JDK version to use inside containers",
-            "Takes effect on restart of Docker container",
-            APPLICATION_ID);
+            "JDK version to use on host and inside containers. Note application-id dimension only applies for container, " +
+                    "while hostname and node type applies for host.",
+            "Takes effect on restart for Docker container and on next host-admin tick for host",
+            APPLICATION_ID,
+            HOSTNAME,
+            NODE_TYPE);
 
     /** WARNING: public for testing: All flags should be defined in {@link Flags}. */
     public static UnboundBooleanFlag defineFeatureFlag(String flagId, boolean defaultValue, List<String> owners,

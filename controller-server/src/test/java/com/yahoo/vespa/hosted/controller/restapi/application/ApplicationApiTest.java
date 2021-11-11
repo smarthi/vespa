@@ -31,7 +31,6 @@ import com.yahoo.vespa.hosted.controller.Application;
 import com.yahoo.vespa.hosted.controller.ControllerTester;
 import com.yahoo.vespa.hosted.controller.Instance;
 import com.yahoo.vespa.hosted.controller.LockedTenant;
-import com.yahoo.vespa.hosted.controller.RoutingController;
 import com.yahoo.vespa.hosted.controller.api.application.v4.EnvironmentResource;
 import com.yahoo.vespa.hosted.controller.api.application.v4.model.ProtonMetrics;
 import com.yahoo.vespa.hosted.controller.api.identifiers.DeploymentId;
@@ -52,11 +51,11 @@ import com.yahoo.vespa.hosted.controller.api.integration.resource.MeteringData;
 import com.yahoo.vespa.hosted.controller.api.integration.resource.ResourceAllocation;
 import com.yahoo.vespa.hosted.controller.api.integration.resource.ResourceSnapshot;
 import com.yahoo.vespa.hosted.controller.api.integration.stubs.MockMeteringClient;
-import com.yahoo.vespa.hosted.controller.application.pkg.ApplicationPackage;
 import com.yahoo.vespa.hosted.controller.application.Change;
 import com.yahoo.vespa.hosted.controller.application.Deployment;
 import com.yahoo.vespa.hosted.controller.application.DeploymentMetrics;
 import com.yahoo.vespa.hosted.controller.application.TenantAndApplicationId;
+import com.yahoo.vespa.hosted.controller.application.pkg.ApplicationPackage;
 import com.yahoo.vespa.hosted.controller.athenz.HostedAthenzIdentities;
 import com.yahoo.vespa.hosted.controller.deployment.ApplicationPackageBuilder;
 import com.yahoo.vespa.hosted.controller.deployment.DeploymentTester;
@@ -68,7 +67,7 @@ import com.yahoo.vespa.hosted.controller.notification.Notification;
 import com.yahoo.vespa.hosted.controller.notification.NotificationSource;
 import com.yahoo.vespa.hosted.controller.restapi.ContainerTester;
 import com.yahoo.vespa.hosted.controller.restapi.ControllerContainerTest;
-import com.yahoo.vespa.hosted.controller.routing.GlobalRouting;
+import com.yahoo.vespa.hosted.controller.routing.RoutingStatus;
 import com.yahoo.vespa.hosted.controller.security.AthenzCredentials;
 import com.yahoo.vespa.hosted.controller.security.AthenzTenantSpec;
 import com.yahoo.vespa.hosted.controller.support.access.SupportAccessGrant;
@@ -958,14 +957,14 @@ public class ApplicationApiTest extends ControllerContainerTest {
                               new File("global-rotation-put.json"));
 
         // Status of routing policy is changed
-        assertGlobalRouting(app.deploymentIdIn(westZone), GlobalRouting.Status.out, GlobalRouting.Agent.tenant);
+        assertGlobalRouting(app.deploymentIdIn(westZone), RoutingStatus.Value.out, RoutingStatus.Agent.tenant);
 
         // DELETE global rotation override status
         tester.assertResponse(request("/application/v4/tenant/tenant1/application/application1/instance/instance1/environment/prod/region/us-west-1/global-rotation/override", DELETE)
                                       .userIdentity(USER_ID)
                                       .data("{\"reason\":\"unit-test\"}"),
                               new File("global-rotation-delete.json"));
-        assertGlobalRouting(app.deploymentIdIn(westZone), GlobalRouting.Status.in, GlobalRouting.Agent.tenant);
+        assertGlobalRouting(app.deploymentIdIn(westZone), RoutingStatus.Value.in, RoutingStatus.Agent.tenant);
 
         // SET global rotation override status by operator
         addUserToHostedOperatorRole(HostedAthenzIdentities.from(HOSTED_VESPA_OPERATOR));
@@ -973,7 +972,7 @@ public class ApplicationApiTest extends ControllerContainerTest {
                                       .userIdentity(HOSTED_VESPA_OPERATOR)
                                       .data("{\"reason\":\"unit-test\"}"),
                               new File("global-rotation-put.json"));
-        assertGlobalRouting(app.deploymentIdIn(westZone), GlobalRouting.Status.out, GlobalRouting.Agent.operator);
+        assertGlobalRouting(app.deploymentIdIn(westZone), RoutingStatus.Value.out, RoutingStatus.Agent.operator);
     }
 
     @Test
@@ -1523,7 +1522,6 @@ public class ApplicationApiTest extends ControllerContainerTest {
                                                                             List.of(RoutingMethod.exclusive, RoutingMethod.shared));
         ApplicationPackage applicationPackage = new ApplicationPackageBuilder()
                 .athenzIdentity(com.yahoo.config.provision.AthenzDomain.from("domain"), AthenzService.from("service"))
-                .compileVersion(RoutingController.DIRECT_ROUTING_MIN_VERSION)
                 .instances("instance1")
                 .region(zone.region().value())
                 .build();
@@ -1564,7 +1562,6 @@ public class ApplicationApiTest extends ControllerContainerTest {
         addUserToHostedOperatorRole(HostedAthenzIdentities.from(HOSTED_VESPA_OPERATOR));
         ApplicationPackage applicationPackage = new ApplicationPackageBuilder()
                 .athenzIdentity(com.yahoo.config.provision.AthenzDomain.from("domain"), AthenzService.from("service"))
-                .compileVersion(RoutingController.DIRECT_ROUTING_MIN_VERSION)
                 .instances("instance1")
                 .region(zone.region().value())
                 .build();
@@ -1868,14 +1865,14 @@ public class ApplicationApiTest extends ControllerContainerTest {
                 "Failed to deploy: Out of capacity");
     }
 
-    private void assertGlobalRouting(DeploymentId deployment, GlobalRouting.Status status, GlobalRouting.Agent agent) {
+    private void assertGlobalRouting(DeploymentId deployment, RoutingStatus.Value value, RoutingStatus.Agent agent) {
         var changedAt = tester.controller().clock().instant();
         var westPolicies = tester.controller().routing().policies().get(deployment);
         assertEquals(1, westPolicies.size());
         var westPolicy = westPolicies.values().iterator().next();
-        assertEquals(status, westPolicy.status().globalRouting().status());
-        assertEquals(agent, westPolicy.status().globalRouting().agent());
-        assertEquals(changedAt.truncatedTo(ChronoUnit.MILLIS), westPolicy.status().globalRouting().changedAt());
+        assertEquals(value, westPolicy.status().routingStatus().value());
+        assertEquals(agent, westPolicy.status().routingStatus().agent());
+        assertEquals(changedAt.truncatedTo(ChronoUnit.MILLIS), westPolicy.status().routingStatus().changedAt());
     }
 
     private static class RequestBuilder implements Supplier<Request> {

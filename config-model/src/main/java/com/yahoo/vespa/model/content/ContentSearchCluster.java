@@ -65,6 +65,7 @@ public class ContentSearchCluster extends AbstractConfigProducer<SearchCluster> 
     private Optional<ResourceLimits> resourceLimits = Optional.empty();
     private final ProtonConfig.Indexing.Optimize.Enum feedSequencerType;
     private final int feedTaskLimit;
+    private final ProtonConfig.Feeding.Shared_field_writer_executor.Enum sharedFieldWriterExecutor;
     private final double defaultFeedConcurrency;
     private final double defaultDiskBloatFactor;
     private final int defaultDocStoreCompressionLevel;
@@ -72,10 +73,6 @@ public class ContentSearchCluster extends AbstractConfigProducer<SearchCluster> 
 
     /** Whether the nodes of this cluster also hosts a container cluster in a hosted system */
     private final boolean combined;
-
-    public void prepare() {
-        clusters.values().forEach(cluster -> cluster.prepareToDistributeFiles(getSearchNodes()));
-    }
 
     public static class Builder extends VespaDomBuilder.DomConfigProducerBuilder<ContentSearchCluster> {
 
@@ -194,6 +191,14 @@ public class ContentSearchCluster extends AbstractConfigProducer<SearchCluster> 
         }
     }
 
+    private static ProtonConfig.Feeding.Shared_field_writer_executor.Enum convertSharedFieldWriterExecutor(String value) {
+        try {
+            return ProtonConfig.Feeding.Shared_field_writer_executor.Enum.valueOf(value);
+        } catch (Throwable t) {
+            return ProtonConfig.Feeding.Shared_field_writer_executor.Enum.NONE;
+        }
+    }
+
     private ContentSearchCluster(AbstractConfigProducer<?> parent,
                                  String clusterName,
                                  ModelContext.FeatureFlags featureFlags,
@@ -213,6 +218,7 @@ public class ContentSearchCluster extends AbstractConfigProducer<SearchCluster> 
         this.combined = combined;
         this.feedSequencerType = convertFeedSequencerType(featureFlags.feedSequencerType());
         this.feedTaskLimit = featureFlags.feedTaskLimit();
+        this.sharedFieldWriterExecutor = convertSharedFieldWriterExecutor(featureFlags.sharedFieldWriterExecutor());
         this.defaultFeedConcurrency = featureFlags.feedConcurrency();
         this.defaultDiskBloatFactor = featureFlags.diskBloatFactor();
         this.defaultDocStoreCompressionLevel = featureFlags.docstoreCompressionLevel();
@@ -435,6 +441,7 @@ public class ContentSearchCluster extends AbstractConfigProducer<SearchCluster> 
             builder.indexing.optimize(feedSequencerType);
         }
         builder.indexing.tasklimit(feedTaskLimit);
+        builder.feeding.shared_field_writer_executor(sharedFieldWriterExecutor);
     }
 
     private boolean isGloballyDistributed(NewDocumentType docType) {

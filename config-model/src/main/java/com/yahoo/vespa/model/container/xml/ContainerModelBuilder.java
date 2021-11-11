@@ -8,8 +8,10 @@ import com.yahoo.config.application.api.ApplicationPackage;
 import com.yahoo.config.application.api.DeployLogger;
 import com.yahoo.config.application.api.DeploymentInstanceSpec;
 import com.yahoo.config.application.api.DeploymentSpec;
+import com.yahoo.config.application.api.Endpoint;
 import com.yahoo.config.model.ConfigModelContext;
 import com.yahoo.config.model.ConfigModelContext.ApplicationType;
+import com.yahoo.config.model.api.ApplicationClusterEndpoint;
 import com.yahoo.config.model.api.ConfigServerSpec;
 import com.yahoo.config.model.api.ContainerEndpoint;
 import com.yahoo.config.model.api.EndpointCertificateSecrets;
@@ -281,6 +283,8 @@ public class ContainerModelBuilder extends ConfigModelBuilder<ContainerModel> {
 
     private void addCloudSecretStore(ApplicationContainerCluster cluster, Element secretStoreElement, DeployState deployState) {
         if ( ! deployState.isHosted()) return;
+        if ( ! cluster.getZone().system().isPublic())
+            throw new RuntimeException("cloud secret store is not supported in non-public system, please see documentation");
         CloudSecretStore cloudSecretStore = new CloudSecretStore();
         Map<String, TenantSecretStore> secretStoresByName = deployState.getProperties().tenantSecretStores()
                 .stream()
@@ -338,9 +342,11 @@ public class ContainerModelBuilder extends ConfigModelBuilder<ContainerModel> {
 
     private void setRotations(Container container, Set<ContainerEndpoint> endpoints, String containerClusterName) {
         var rotationsProperty = endpoints.stream()
-                                         .filter(endpoint -> endpoint.clusterId().equals(containerClusterName))
-                                         .flatMap(endpoint -> endpoint.names().stream())
-                                         .collect(Collectors.toUnmodifiableSet());
+                .filter(endpoint -> endpoint.clusterId().equals(containerClusterName))
+                // Only consider global endpoints.
+                .filter(endpoint -> endpoint.scope() == ApplicationClusterEndpoint.Scope.global)
+                .flatMap(endpoint -> endpoint.names().stream())
+                .collect(Collectors.toUnmodifiableSet());
 
         // Build the comma delimited list of endpoints this container should be known as.
         // Confusingly called 'rotations' for legacy reasons.

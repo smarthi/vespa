@@ -5,6 +5,7 @@ import com.yahoo.cloud.config.ZookeeperServerConfig;
 import com.yahoo.component.ComponentId;
 import com.yahoo.config.application.api.ApplicationPackage;
 import com.yahoo.config.model.NullConfigModelRegistry;
+import com.yahoo.config.model.api.ApplicationClusterEndpoint;
 import com.yahoo.config.model.api.ContainerEndpoint;
 import com.yahoo.config.model.api.EndpointCertificateSecrets;
 import com.yahoo.config.model.api.ModelContext;
@@ -613,7 +614,7 @@ public class ContainerModelBuilderTest extends ContainerModelBuilderTestBase {
         final var deployState = new DeployState.Builder()
                 .applicationPackage(applicationPackage)
                 .zone(new Zone(Environment.prod, RegionName.from("us-east-1")))
-                .endpoints(Set.of(new ContainerEndpoint("comics-search", List.of("nalle", "balle"))))
+                .endpoints(Set.of(new ContainerEndpoint("comics-search", ApplicationClusterEndpoint.Scope.global, List.of("nalle", "balle"))))
                 .properties(new TestProperties().setHostedVespa(true))
                 .build();
 
@@ -793,6 +794,34 @@ public class ContainerModelBuilderTest extends ContainerModelBuilderTestBase {
 
         assertEquals(1, secretStoreConfig.awsParameterStores().size());
         assertEquals("store1", secretStoreConfig.awsParameterStores().get(0).name());
+    }
+
+    @Test
+    public void cloud_secret_store_fails_to_set_up_in_non_public_zone() {
+        try {
+            Element clusterElem = DomBuilderTest.parse(
+                    "<container version='1.0'>",
+                    "  <secret-store type='cloud'>",
+                    "    <store id='store'>",
+                    "      <aws-parameter-store account='store1' region='eu-north-1'/>",
+                    "    </store>",
+                    "  </secret-store>",
+                    "</container>");
+
+            DeployState state = new DeployState.Builder()
+                    .properties(
+                            new TestProperties()
+                                    .setHostedVespa(true)
+                                    .setTenantSecretStores(List.of(new TenantSecretStore("store1", "1234", "role", Optional.of("externalid")))))
+                    .zone(new Zone(SystemName.main, Environment.prod, RegionName.defaultName()))
+                    .build();
+            createModel(root, state, null, clusterElem);
+        } catch (RuntimeException e) {
+            assertEquals("cloud secret store is not supported in non-public system, please see documentation",
+                         e.getMessage());
+            return;
+        }
+        fail();
     }
 
     @Test

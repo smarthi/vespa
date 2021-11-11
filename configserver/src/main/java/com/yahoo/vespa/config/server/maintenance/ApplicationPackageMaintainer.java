@@ -45,7 +45,7 @@ public class ApplicationPackageMaintainer extends ConfigServerMaintainer {
                                  Curator curator,
                                  Duration interval,
                                  FlagSource flagSource) {
-        super(applicationRepository, curator, flagSource, applicationRepository.clock().instant(), interval);
+        super(applicationRepository, curator, flagSource, applicationRepository.clock().instant(), interval, false);
         this.applicationRepository = applicationRepository;
         this.configserverConfig = applicationRepository.configserverConfig();
         this.supervisor = new Supervisor(new Transport("filedistribution-pool")).setDropEmptyBuffers(true);
@@ -63,7 +63,7 @@ public class ApplicationPackageMaintainer extends ConfigServerMaintainer {
             for (var applicationId : applicationRepository.listApplications()) {
                 log.fine(() -> "Verifying application package for " + applicationId);
                 Session session = applicationRepository.getActiveSession(applicationId);
-                if (session == null) continue;  // App might be deleted after call to listApplications()
+                if (session == null) continue;  // App might be deleted after call to listApplications() or not activated yet (bootstrap phase)
 
                 FileReference applicationPackage = session.getApplicationPackageReference();
                 long sessionId = session.getSessionId();

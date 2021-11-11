@@ -29,6 +29,7 @@ import com.yahoo.documentmodel.*;
 import com.yahoo.compress.Compressor;
 import com.yahoo.compress.CompressionType;
 import com.yahoo.searchdefinition.Application;
+import com.yahoo.searchdefinition.DistributableResource;
 import com.yahoo.searchdefinition.document.*;
 import com.yahoo.searchdefinition.document.annotation.SDAnnotationType;
 import com.yahoo.searchdefinition.document.annotation.TemporaryAnnotationReferenceDataType;
@@ -152,26 +153,6 @@ public class SDParser {
                                                       token_source.input_stream.getBeginLine() + ", column " +
                                                       token_source.input_stream.getBeginColumn() + ".").initCause(e);
         }
-    }
-
-    /**
-     * Sets the compression threshold in each item in the compression config array.
-     *
-     * @param cfg The array of configs to modify.
-     * @param val The compression threshold to set.
-     */
-    private void setCompressionThreshold(CompressionConfig cfg, int val) {
-        cfg.threshold = val;
-    }
-
-    /**
-     * Sets the compression level in each item in the compression config array.
-     *
-     * @param cfg The array of configs to modify.
-     * @param val The compression level to set.
-     */
-    private void setCompressionLevel(CompressionConfig cfg, int val) {
-        cfg.compressionLevel = val;
     }
 }
 
@@ -355,6 +336,9 @@ TOKEN :
 | < DISTANCEMETRIC: "distance-metric" >
 | < NEIGHBORSTOEXPLOREATINSERT: "neighbors-to-explore-at-insert" >
 | < MULTITHREADEDINDEXING: "multi-threaded-indexing" >
+| < MATCHFEATURES_SL: "match-features" (" ")* ":" (~["}","\n"])* ("\n")? >
+| < MATCHFEATURES_ML: "match-features" (<SEARCHLIB_SKIP>)? "{" (~["}"])* "}" >
+| < MATCHFEATURES_ML_INHERITS: "match-features inherits " (<IDENTIFIER>) (<SEARCHLIB_SKIP>)? "{" (~["}"])* "}" >
 | < SUMMARYFEATURES_SL: "summary-features" (" ")* ":" (~["}","\n"])* ("\n")? >
 | < SUMMARYFEATURES_ML: "summary-features" (<SEARCHLIB_SKIP>)? "{" (~["}"])* "}" >
 | < SUMMARYFEATURES_ML_INHERITS: "summary-features inherits " (<IDENTIFIER>) (<SEARCHLIB_SKIP>)? "{" (~["}"])* "}" >
@@ -565,7 +549,7 @@ Object documentBody(SDDocumentType document, Schema schema) :
 }
 {
     ( annotation(schema, document)
-      | compression(document, null)
+      | compression(document)
       | headercfg(document)
       | bodycfg(document)
       | structInside(document, schema)
@@ -586,7 +570,7 @@ void rawAsBase64(Schema schema) :
  */
 void headercfg(SDDocumentType document) : { }
 {
-    <HEADER> lbrace() [compression(document, "header") (<NL>)*] <RBRACE>
+    <HEADER> lbrace() [compression(document) (<NL>)*] <RBRACE>
 }
 
 /**
@@ -596,46 +580,33 @@ void headercfg(SDDocumentType document) : { }
  */
 void bodycfg(SDDocumentType document) : { }
 {
-    <BODY> lbrace() [compression(document, "body") (<NL>)*] <RBRACE>
+    <BODY> lbrace() [compression(document) (<NL>)*] <RBRACE>
 }
 
 /**
  * Consumes a compression block. This can be set in both document header and -body block.
  *
  * @param document The document type to modify.
- * @param name     The name of the document block to modify.
  */
-void compression(SDDocumentType document, String name) :
+void compression(SDDocumentType document) :
 {
     deployLogger.logApplicationPackage(Level.WARNING, "'compression' for a document is deprecated and ignored");
-    CompressionConfig cfg = new CompressionConfig(CompressionType.LZ4);
 }
 {
-    <COMPRESSION> lbrace() (cfg = compressionItem(cfg) (<NL>)*)* <RBRACE>
-    {
-        if (name == null || name.equals("header")) {
-            document.getDocumentType().contentStruct().setCompressionConfig(cfg);
-        }
-    }
+    <COMPRESSION> lbrace() ( compressionItem() (<NL>)*)* <RBRACE>  { }
 }
 
 /**
  * Consumes the body of a compression block.
  *
- * @param cfg The compression config to modify.
  */
-CompressionConfig compressionItem(CompressionConfig cfg) :
+void compressionItem() :
+{ }
 {
-    int val = -1;
-}
-{
-    ( ( <TYPE> <COLON> <LZ4> { cfg = new CompressionConfig(CompressionType.LZ4, cfg.compressionLevel, cfg.threshold); } )
-      | (<COMPRESSIONTHRESHOLD> <COLON> val = integer()) { setCompressionThreshold(cfg, val); }
-      | (<COMPRESSIONLEVEL>   <COLON> val = integer())  { setCompressionLevel(cfg, val); }
-    )
-    {
-       return cfg;
-    }
+    ( ( <TYPE> <COLON> <LZ4> )
+      | (<COMPRESSIONTHRESHOLD> <COLON> <INTEGER>)
+      | (<COMPRESSIONLEVEL> <COLON> <INTEGER>)
+    ) { }
 }
 
 /**
@@ -836,14 +807,13 @@ void structOutside(Schema schema) :
 SDDocumentType structDefinition(Schema schema, SDDocumentType repo) :
 {
     String name;
+    String inherited = null;
     SDDocumentType struct;
 }
 {
-    <STRUCT> name = identifier()
-    {
-        struct = new SDDocumentType(name, schema);
-    }
-    lbrace() (structFieldDefinition(struct) (<NL>)*)* <RBRACE>
+    ( <STRUCT> name = identifier() (<NL>)* { struct = new SDDocumentType(name, schema); }
+    [ inheritsDocument(struct) (<NL>)* ]
+    lbrace() (structFieldDefinition(struct) (<NL>)*)* <RBRACE> )
     {
         try {
             docMan.getDataType(name);
@@ -1943,8 +1913,8 @@ Object onnxModelItem(OnnxModel onnxModel) :
 }
 {
     (
-        (<FILE> <COLON> path = filePath() { } (<NL>)*) { onnxModel.setFileName(path); } |
-        (<URI> <COLON> path = uriPath() { } (<NL>)*) { onnxModel.setUri(path); } |
+        (path = fileItem()) { onnxModel.setFileName(path); } |
+        (path = uriItem()) { onnxModel.setUri(path); } |
         (<ONNX_INPUT_SL>) {
             String name = token.image.substring(5, token.image.lastIndexOf(":")).trim();
             if (name.startsWith("\"")) { name = name.substring(1, name.length() - 1); }
@@ -1971,56 +1941,42 @@ Object onnxModelItem(OnnxModel onnxModel) :
 void rankingConstant(Schema schema) :
 {
     String name;
-    RankingConstant constant;
-}
-{
-    ( <CONSTANT> name = identifier()
-        {
-            constant = new RankingConstant(name);
-        }
-      lbrace() (rankingConstantItem(constant) (<NL>)*)+ <RBRACE> )
-    {
-        if (documentsOnly) return;
-        schema.rankingConstants().add(constant);
-    }
-}
-
-/**
- * This rule consumes a constant block.
- *
- * @param constant The constant to modify.
- * @return Null.
- */
-Object rankingConstantItem(RankingConstant constant) :
-{
     String path = null;
+    DistributableResource.PathType pathType = DistributableResource.PathType.FILE;
     TensorType type = null;
 }
 {
-    ( (<FILE> <COLON> path = filePath() { } (<NL>)*) { constant.setFileName(path); }
-      | (<URI> <COLON> path = uriPath() { } (<NL>)*) { constant.setUri(path); }
-      | type = tensorTypeWithPrefix(rankingConstantErrorMessage(constant.getName())) (<NL>)* { constant.setType(type); }
+    ( <CONSTANT> name = identifier() lbrace()
+      (path = fileItem() { pathType = DistributableResource.PathType.FILE; }
+       | path = uriItem() { pathType = DistributableResource.PathType.URI; }
+       | type = tensorTypeWithPrefix(rankingConstantErrorMessage(name)) (<NL>)*
+      )+
+      <RBRACE>
     )
     {
-        return null;
+        if (documentsOnly) return;
+        schema.rankingConstants().add(new RankingConstant(name, type, path, pathType));
     }
+}
+
+String fileItem() :
+{
+   String path;
+}
+{
+  (<FILE> <COLON> ( <FILE_PATH> | <STRING> | <IDENTIFIER>) { path = token.image; } { } (<NL>)*) { return path; }
+}
+String uriItem() :
+{
+   String path;
+}
+{
+  (<URI> <COLON> ( <URI_PATH> ) { path = token.image; } (<NL>)*) { return path; }
 }
 
 String rankingConstantErrorMessage(String name) : {}
 {
     { return "For ranking constant ' " + name + "'"; }
-}
-
-String filePath() : { }
-{
-    ( <FILE_PATH> | <STRING> | <IDENTIFIER>)
-    { return token.image; }
-}
-
-String uriPath() : { }
-{
-    ( <URI_PATH> )
-    { return token.image; }
 }
 
 /**
@@ -2078,6 +2034,7 @@ Object rankProfileItem(RankProfile profile) : { }
       | secondPhase(profile)
       | rankDegradation(profile)
       | constants(profile)
+      | matchFeatures(profile)
       | summaryFeatures(profile) )
     { return null; }
 }
@@ -2315,6 +2272,33 @@ Object summaryFeatures(RankProfile profile) :
     )
     {
         profile.addSummaryFeatures(getFeatureList(features));
+        return null;
+    }
+}
+
+/**
+ * This rule consumes a match-features block of a rank profile.
+ *
+ * @param profile The rank profile to modify.
+ * @return Null.
+ */
+Object matchFeatures(RankProfile profile) :
+{
+    String features;
+}
+{
+    ( <MATCHFEATURES_SL> { features = token.image.substring(token.image.indexOf(":") + 1).trim(); } |
+      <MATCHFEATURES_ML> { features = token.image.substring(token.image.indexOf("{") + 1,
+                                                              token.image.lastIndexOf("}")).trim(); } |
+      <MATCHFEATURES_ML_INHERITS> {
+          int inheritsIndex = token.image.indexOf("inherits ");
+          String rest = token.image.substring(inheritsIndex + "inherits ".length());
+          profile.setInheritedMatchFeatures(rest.substring(0, rest.indexOf(" ")).trim());
+          features = token.image.substring(token.image.indexOf("{") + 1, token.image.lastIndexOf("}")).trim();
+      }
+    )
+    {
+        profile.addMatchFeatures(getFeatureList(features));
         return null;
     }
 }

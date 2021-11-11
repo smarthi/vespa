@@ -4,65 +4,57 @@ package com.yahoo.searchdefinition;
 import com.yahoo.config.FileReference;
 import com.yahoo.config.application.api.FileRegistry;
 import com.yahoo.path.Path;
-import com.yahoo.vespa.model.AbstractService;
-import com.yahoo.vespa.model.utils.FileSender;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Objects;
 
 public class DistributableResource {
 
-    public enum PathType { FILE, URI, BLOB };
+    public enum PathType { FILE, URI, BLOB }
 
     /** The search definition-unique name of this constant */
     private final String name;
-    private final ByteBuffer blob;
+    //TODO Make path/pathType final
+    private PathType pathType;
     private String path;
     private FileReference fileReference = new FileReference("");
-    private PathType pathType = PathType.FILE;
 
     public PathType getPathType() {
         return pathType;
     }
 
     public DistributableResource(String name) {
-        this.name = name;
-        blob = null;
+        this(name, null, PathType.FILE);
     }
     public DistributableResource(String name, String path) {
+        this(name, path, PathType.FILE);
+    }
+    public DistributableResource(String name, String path, PathType type) {
         this.name = name;
         this.path = path;
-        blob = null;
+        this.pathType = type;
     }
     public DistributableResource(String name, ByteBuffer blob) {
-        Objects.requireNonNull(name, "Blob name cannot be null");
-        Objects.requireNonNull(blob, "Blob cannot be null");
         this.name = name;
-        this.blob = blob;
         path = name + ".lz4";
         pathType = PathType.BLOB;
     }
 
+    //TODO Remove and make path/pathType final
     public void setFileName(String fileName) {
         Objects.requireNonNull(fileName, "Filename cannot be null");
         this.path = fileName;
         this.pathType = PathType.FILE;
     }
 
+    //TODO Remove and make path/pathType final
     public void setUri(String uri) {
         Objects.requireNonNull(uri, "uri cannot be null");
         this.path = uri;
         this.pathType = PathType.URI;
     }
 
-    /** Initiate sending of this constant to some services over file distribution */
-    public void sendTo(Collection<? extends AbstractService> services) {
-        FileSender.send(fileReference, services);
-    }
-
     public String getName() { return name; }
-    public ByteBuffer getBlob() { return blob; }
     public String getFileName() { return path; }
     public Path getFilePath() { return Path.fromString(path); }
     public String getUri() { return path; }
@@ -75,9 +67,6 @@ public class DistributableResource {
                 if (path == null || path.isEmpty())
                     throw new IllegalArgumentException("Distributable URI/FILE resource must have a file or uri.");
                 break;
-            case BLOB:
-                if (blob == null)
-                    throw new IllegalArgumentException("Distributable BLOB can not be null.");
         }
     }
 
@@ -89,12 +78,13 @@ public class DistributableResource {
             case URI:
                 fileReference = fileRegistry.addUri(path);
                 break;
-            case BLOB:
-                fileReference = fileRegistry.addBlob(path, blob);
-                break;
             default:
                 throw new IllegalArgumentException("Unknown path type " + pathType);
         }
+    }
+
+    protected void register(FileRegistry fileRegistry, ByteBuffer blob) {
+        fileReference = fileRegistry.addBlob(path, blob);
     }
 
     @Override

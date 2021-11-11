@@ -1,10 +1,8 @@
 // Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 package com.yahoo.statistics;
 
-
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.yahoo.log.event.Event;
 import com.yahoo.container.StatisticsConfig;
 
 
@@ -13,6 +11,7 @@ import com.yahoo.container.StatisticsConfig;
  *
  * @author  Steinar Knutsen
  */
+@Deprecated
 public class Counter extends Handle {
     // The current value of this counter
     private AtomicLong current = new AtomicLong(0L);
@@ -165,16 +164,10 @@ public class Counter extends Handle {
      */
     @Override
     public void runHandle() {
-        String name = getName();
-        long lastCurrent;
         boolean resetState = getResetCounter();
 
         if (resetState) {
-            lastCurrent = current.getAndSet(0L);
-            Event.value(name, lastCurrent);
-        } else {
-            lastCurrent = current.get();
-            Event.count(name, lastCurrent);
+            current.set(0L);
         }
     }
 
