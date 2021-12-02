@@ -2,7 +2,6 @@
 
 #include <vespa/vespalib/gtest/gtest.h>
 #include <vespa/document/base/documentid.h>
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/document/datatype/documenttype.h>
 #include <vespa/document/datatype/referencedatatype.h>
 #include <vespa/document/fieldvalue/document.h>
@@ -17,6 +16,7 @@ LOG_SETUP("document_select_test");
 
 using document::Document;
 using document::DocumentId;
+using document::DocumenttypesConfig;
 using document::DocumentType;
 using document::DocumentTypeRepo;
 using document::DocumentTypeRepoFactory;

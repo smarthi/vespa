@@ -11,7 +11,6 @@
 #include <vespa/config-summary.h>
 #include <vespa/config-summarymap.h>
 #include <vespa/document/base/testdocman.h>
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/document/repo/documenttyperepo.h>
 #include <vespa/document/test/make_bucket_space.h>
 #include <vespa/fastos/file.h>
@@ -56,6 +55,7 @@ using std::shared_ptr;
 using document::BucketSpace;
 using document::DocumentType;
 using document::DocumentTypeRepo;
+using document::DocumenttypesConfig;
 using document::TestDocMan;
 using document::test::makeBucketSpace;
 using search::TuneFileDocumentDB;

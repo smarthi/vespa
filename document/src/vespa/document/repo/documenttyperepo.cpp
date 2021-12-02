@@ -2,7 +2,6 @@
 
 #include "documenttyperepo.h"
 
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/document/datatype/annotationreferencedatatype.h>
 #include <vespa/document/datatype/arraydatatype.h>
 #include <vespa/document/datatype/documenttype.h>
@@ -230,8 +229,6 @@ struct DataTypeRepo {
 };
 
 namespace {
-
-
 void addAnnotationType(const DocumenttypesConfig::Documenttype::Annotationtype &type, AnnotationTypeRepo &annotations)
 {
     auto a = std::make_unique<AnnotationType>(type.id, type.name);

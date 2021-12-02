@@ -2,7 +2,6 @@
 
 #include "application.h"
 
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/document/config/config-documenttypes.h>
 #include <vespa/document/repo/documenttyperepo.h>
 #include <vespa/documentapi/messagebus/documentprotocol.h>
@@ -19,6 +18,7 @@
 #include <vespa/fnet/frt/supervisor.h>
 
 using config::ConfigGetter;
+using document::DocumenttypesConfig;
 using messagebus::MessagebusConfig;
 using document::DocumentTypeRepo;
 

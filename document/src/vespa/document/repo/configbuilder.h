@@ -4,7 +4,6 @@
 
 #include <vespa/document/base/field.h>
 #include <vespa/document/config/config-documenttypes.h>
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/document/datatype/datatype.h>
 #include <vespa/document/datatype/structdatatype.h>
 #include <vespa/vespalib/stllike/string.h>
@@ -137,7 +136,7 @@ struct DocTypeRep {
 };
 
 class DocumenttypesConfigBuilderHelper {
-    ::document::config::DocumenttypesConfigBuilder _config;
+    ::document::DocumenttypesConfigBuilder _config;
 
 public:
     DocumenttypesConfigBuilderHelper() {}
@@ -148,7 +147,7 @@ public:
                         const DatatypeConfig &header,
                         const DatatypeConfig &body);
 
-    ::document::config::DocumenttypesConfigBuilder &config() { return _config; }
+    ::document::DocumenttypesConfigBuilder &config() { return _config; }
 };
 
 }

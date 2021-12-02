@@ -41,7 +41,7 @@ protected:
 
 namespace {
 
-DocumenttypesConfig getRepoConfig() {
+document::DocumenttypesConfig getRepoConfig() {
     const int struct2_id = 64;
     DocumenttypesConfigBuilderHelper builder;
     builder.document(

@@ -2,7 +2,6 @@
 
 #include "bootstrapconfigmanager.h"
 #include "bootstrapconfig.h"
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/document/repo/document_type_repo_factory.h>
 #include <vespa/searchcore/proton/common/hw_info_sampler.h>
 #include <vespa/config-bucketspaces.h>
@@ -20,6 +19,7 @@ using search::TuneFileDocumentDB;
 using vespa::config::search::core::ProtonConfig;
 using cloud::config::filedistribution::FiledistributorrpcConfig;
 using vespa::config::content::core::BucketspacesConfig;
+using document::DocumenttypesConfig;
 using document::DocumentTypeRepoFactory;
 using BucketspacesConfigSP = std::shared_ptr<BucketspacesConfig>;
 

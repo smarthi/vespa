@@ -43,9 +43,9 @@ DataType::Type convert(Schema::DataType type) {
 }
 
 void
-insertStructType(document::config::DocumenttypesConfig::Documenttype & cfg, const StructDataType & structType)
+insertStructType(document::DocumenttypesConfig::Documenttype & cfg, const StructDataType & structType)
 {
-    typedef document::config::DocumenttypesConfig DTC;
+    typedef document::DocumenttypesConfig DTC;
     DTC::Documenttype::Datatype::Sstruct cfgStruct;
     cfgStruct.name = structType.getName();
     Field::Set fieldSet = structType.getFieldSet();
@@ -97,7 +97,7 @@ DocTypeBuilder::DocTypeBuilder(const Schema &schema)
     _iFields.setup(schema);
 }
 
-document::config::DocumenttypesConfig DocTypeBuilder::makeConfig() const {
+document::DocumenttypesConfig DocTypeBuilder::makeConfig() const {
     using namespace document::config_builder;
     TypeCache type_cache;
 
@@ -168,10 +168,10 @@ document::config::DocumenttypesConfig DocTypeBuilder::makeConfig() const {
     return builder.config();
 }
 
-document::config::DocumenttypesConfig
+document::DocumenttypesConfig
 DocTypeBuilder::makeConfig(const DocumentType &docType)
 {
-    typedef document::config::DocumenttypesConfigBuilder DTC;
+    typedef document::DocumenttypesConfigBuilder DTC;
     DTC cfg;
     { // document type
         DTC::Documenttype dtype;

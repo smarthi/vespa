@@ -8,7 +8,6 @@
  */
 #pragma once
 
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/persistence/spi/persistenceprovider.h>
 #include <gtest/gtest.h>
 
@@ -20,6 +19,8 @@ class TestDocMan;
 
 }
 
+namespace document::internal { class InternalDocumenttypesType; }
+
 namespace storage::spi {
 
 class ConformanceTest : public ::testing::Test {
@@ -28,6 +29,7 @@ public:
     using PersistenceProviderUP = std::unique_ptr<PersistenceProvider>;
     struct PersistenceFactory {
         typedef std::unique_ptr<PersistenceFactory> UP;
+        using DocumenttypesConfig = const document::internal::InternalDocumenttypesType;
 
         virtual ~PersistenceFactory() = default;
         virtual PersistenceProviderUP getPersistenceImplementation(

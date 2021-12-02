@@ -20,9 +20,9 @@ class DocTypeBuilder {
 
 public:
     DocTypeBuilder(const Schema & schema);
-    document::config::DocumenttypesConfig makeConfig() const;
+    document::DocumenttypesConfig makeConfig() const;
 
-    static document::config::DocumenttypesConfig
+    static document::DocumenttypesConfig
     makeConfig(const document::DocumentType &docType);
 };
 

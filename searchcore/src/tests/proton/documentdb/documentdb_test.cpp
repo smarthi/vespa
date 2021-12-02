@@ -2,7 +2,6 @@
 
 #include <tests/proton/common/dummydbowner.h>
 #include <vespa/config-bucketspaces.h>
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include <vespa/document/datatype/documenttype.h>
 #include <vespa/document/repo/documenttyperepo.h>
 #include <vespa/document/test/make_bucket_space.h>
@@ -44,6 +43,7 @@ using namespace std::chrono_literals;
 
 using document::DocumentType;
 using document::DocumentTypeRepo;
+using document::DocumenttypesConfig;
 using document::test::makeBucketSpace;
 using search::SerialNum;
 using search::TuneFileDocumentDB;

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <vespa/document/config/documenttypes_config_fwd.h>
 #include "bm_cluster_params.h"
 #include <memory>
 #include <vector>
@@ -20,6 +19,7 @@ class DocumentTypeRepo;
 class FieldSetRepo;
 
 }
+namespace document::internal { class InternalDocumenttypesType; }
 namespace mbus { class Slobrok; }
 namespace storage::rpc { class SharedRpcResources; }
 
@@ -41,6 +41,7 @@ class IBmFeedHandler;
 class BmCluster {
     struct MessageBusConfigSet;
     struct RpcClientConfigSet;
+    using DocumenttypesConfig = const document::internal::InternalDocumenttypesType;
     BmClusterParams                                   _params;
     int                                               _slobrok_port;
     int                                               _rpc_client_port;
